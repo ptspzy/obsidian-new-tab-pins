@@ -1,0 +1,31 @@
+{
+  "name": "obsidian-new-tab-pins",
+  "version": "0.1.0",
+  "description": "Browser-like new tab home view for Obsidian with pinned notes.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run",
+    "verify:release": "node scripts/verify-release.mjs",
+    "release:check": "npm test && npm run build && npm run verify:release",
+    "release:stage": "npm run release:check && node scripts/stage-release.mjs"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "new-tab",
+    "pinned-notes"
+  ],
+  "author": "Joah Peng",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "^1.5.12",
+    "tslib": "^2.6.2",
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.8"
+  }
+}

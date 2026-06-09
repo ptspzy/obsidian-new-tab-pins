@@ -1,0 +1,344 @@
+import {
+  Menu,
+  Notice,
+  Plugin,
+  TAbstractFile,
+  TFile,
+  WorkspaceLeaf
+} from "obsidian";
+import {
+  filterMarkdownFiles,
+  getDisplayName,
+  getRecentModifiedFiles as selectRecentModifiedFiles,
+  movePinnedFile,
+  removePinnedFile,
+  reorderPinnedFile,
+  restorePinnedFile,
+  type RemovedPinnedFile
+} from "./file-utils";
+import { NewTabPinsSettingTab } from "./SettingsTab";
+import { NewTabPinsView } from "./NewTabPinsView";
+import {
+  DEFAULT_SETTINGS,
+  NewTabPinsSettings,
+  VIEW_TYPE_NEW_TAB_PINS
+} from "./settings";
+
+export default class NewTabPinsPlugin extends Plugin {
+  settings: NewTabPinsSettings = { ...DEFAULT_SETTINGS };
+  private replacingEmptyLeaf = false;
+  private replaceTimer: number | null = null;
+
+  async onload(): Promise<void> {
+    await this.loadSettings();
+
+    this.registerView(
+      VIEW_TYPE_NEW_TAB_PINS,
+      (leaf) => new NewTabPinsView(leaf, this)
+    );
+
+    this.addSettingTab(new NewTabPinsSettingTab(this));
+    this.registerCommands();
+    this.registerFileMenu();
+    this.registerAutoReplaceEmptyTabs();
+
+    this.app.workspace.onLayoutReady(() => {
+      this.scheduleAutoReplace(this.app.workspace.getLeaf(false));
+    });
+  }
+
+  onunload(): void {
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_NEW_TAB_PINS);
+
+    if (this.replaceTimer !== null) {
+      window.clearTimeout(this.replaceTimer);
+      this.replaceTimer = null;
+    }
+  }
+
+  async loadSettings(): Promise<void> {
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...(await this.loadData())
+    };
+  }
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+  }
+
+  async openHomeTab(): Promise<void> {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_NEW_TAB_PINS);
+
+    if (leaves.length > 0) {
+      await this.app.workspace.revealLeaf(leaves[0]);
+      return;
+    }
+
+    const leaf = this.app.workspace.getLeaf("tab");
+    await this.setLeafToHome(leaf, true);
+  }
+
+  async replaceCurrentTabWithHome(): Promise<void> {
+    const leaf = this.app.workspace.getLeaf(false);
+    await this.setLeafToHome(leaf, true);
+  }
+
+  async pinFile(file: TFile): Promise<void> {
+    if (file.extension.toLowerCase() !== "md") {
+      new Notice("New Tab Pins only supports Markdown files.");
+      return;
+    }
+
+    if (this.settings.pinnedFiles.some((item) => item.path === file.path)) {
+      new Notice("File is already pinned.");
+      return;
+    }
+
+    this.settings.pinnedFiles = [
+      ...this.settings.pinnedFiles,
+      {
+        path: file.path,
+        createdAt: Date.now()
+      }
+    ];
+    await this.saveSettings();
+    this.refreshViews();
+    new Notice(`Pinned ${file.basename}.`);
+  }
+
+  async unpinFile(path: string): Promise<void> {
+    const result = removePinnedFile(this.settings.pinnedFiles, path);
+
+    if (!result.removed) {
+      return;
+    }
+
+    this.settings.pinnedFiles = result.pinnedFiles;
+    await this.saveSettings();
+    this.refreshViews();
+    this.showUnpinUndoNotice(result.removed);
+  }
+
+  async movePinned(path: string, direction: -1 | 1): Promise<void> {
+    this.settings.pinnedFiles = movePinnedFile(this.settings.pinnedFiles, path, direction);
+    await this.saveSettings();
+    this.refreshViews();
+  }
+
+  async reorderPinned(draggedPath: string, targetPath: string): Promise<void> {
+    const nextPinnedFiles = reorderPinnedFile(
+      this.settings.pinnedFiles,
+      draggedPath,
+      targetPath
+    );
+    const currentOrder = this.settings.pinnedFiles.map((item) => item.path).join("\n");
+    const nextOrder = nextPinnedFiles.map((item) => item.path).join("\n");
+
+    if (nextOrder === currentOrder) {
+      return;
+    }
+
+    this.settings.pinnedFiles = nextPinnedFiles;
+    await this.saveSettings();
+    this.refreshViews();
+  }
+
+  async setRecentFilesCollapsed(collapsed: boolean): Promise<void> {
+    if (this.settings.recentFilesCollapsed === collapsed) {
+      return;
+    }
+
+    this.settings.recentFilesCollapsed = collapsed;
+    await this.saveSettings();
+    this.refreshViews();
+  }
+
+  getSearchResults(query: string): TFile[] {
+    return filterMarkdownFiles(this.app.vault.getMarkdownFiles(), query);
+  }
+
+  getRecentModifiedFiles(): TFile[] {
+    const pinnedPaths = new Set(this.settings.pinnedFiles.map((item) => item.path));
+    return selectRecentModifiedFiles(this.app.vault.getMarkdownFiles(), pinnedPaths);
+  }
+
+  async openFile(path: string, leaf: WorkspaceLeaf = this.app.workspace.getLeaf(false)): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+
+    if (!(file instanceof TFile)) {
+      new Notice("Pinned file no longer exists.");
+      return;
+    }
+
+    await leaf.openFile(file);
+  }
+
+  refreshViews(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_NEW_TAB_PINS)) {
+      const view = leaf.view;
+      if (view instanceof NewTabPinsView) {
+        view.refresh();
+      }
+    }
+  }
+
+  private showUnpinUndoNotice(removed: RemovedPinnedFile): void {
+    const fragment = document.createDocumentFragment();
+    const message = document.createElement("span");
+    message.textContent = `Removed ${getDisplayName(removed.item.path)}. `;
+    fragment.appendChild(message);
+
+    const undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "ntp-notice-action";
+    undo.textContent = "Undo";
+    fragment.appendChild(undo);
+
+    const notice = new Notice(fragment, 8000);
+    undo.addEventListener("click", () => {
+      notice.hide();
+
+      if (this.settings.pinnedFiles.some((item) => item.path === removed.item.path)) {
+        return;
+      }
+
+      this.settings.pinnedFiles = restorePinnedFile(this.settings.pinnedFiles, removed);
+      void this.saveSettings().then(() => {
+        this.refreshViews();
+      });
+    });
+  }
+
+  private registerCommands(): void {
+    this.addCommand({
+      id: "open-home-tab",
+      name: "Open home tab",
+      callback: () => {
+        void this.openHomeTab();
+      }
+    });
+
+    this.addCommand({
+      id: "replace-current-tab-with-home",
+      name: "Replace current tab with home",
+      callback: () => {
+        void this.replaceCurrentTabWithHome();
+      }
+    });
+
+    this.addCommand({
+      id: "pin-current-file",
+      name: "Pin current file",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        const canPin = file instanceof TFile && file.extension.toLowerCase() === "md";
+
+        if (!canPin) {
+          return false;
+        }
+
+        if (!checking) {
+          void this.pinFile(file);
+        }
+
+        return true;
+      }
+    });
+
+    this.addCommand({
+      id: "unpin-current-file",
+      name: "Unpin current file",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        const canUnpin =
+          file instanceof TFile &&
+          this.settings.pinnedFiles.some((item) => item.path === file.path);
+
+        if (!canUnpin) {
+          return false;
+        }
+
+        if (!checking) {
+          void this.unpinFile(file.path);
+        }
+
+        return true;
+      }
+    });
+  }
+
+  private registerFileMenu(): void {
+    this.registerEvent(
+      this.app.workspace.on(
+        "file-menu",
+        (menu: Menu, file: TAbstractFile, _source: string) => {
+          if (!(file instanceof TFile) || file.extension.toLowerCase() !== "md") {
+            return;
+          }
+
+          const isPinned = this.settings.pinnedFiles.some((item) => item.path === file.path);
+
+          menu.addItem((item) => {
+            item
+              .setTitle(isPinned ? "Unpin from New Tab Pins" : "Pin to New Tab Pins")
+              .setIcon(isPinned ? "pin-off" : "pin")
+              .onClick(() => {
+                if (isPinned) {
+                  void this.unpinFile(file.path);
+                } else {
+                  void this.pinFile(file);
+                }
+              });
+          });
+        }
+      )
+    );
+  }
+
+  private registerAutoReplaceEmptyTabs(): void {
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        this.scheduleAutoReplace(leaf);
+      })
+    );
+  }
+
+  private scheduleAutoReplace(leaf: WorkspaceLeaf | null): void {
+    if (!leaf || !this.settings.autoReplaceEmptyTabs || this.replacingEmptyLeaf) {
+      return;
+    }
+
+    if (this.replaceTimer !== null) {
+      window.clearTimeout(this.replaceTimer);
+    }
+
+    this.replaceTimer = window.setTimeout(() => {
+      this.replaceTimer = null;
+      void this.replaceEmptyLeaf(leaf);
+    }, 75);
+  }
+
+  private async replaceEmptyLeaf(leaf: WorkspaceLeaf): Promise<void> {
+    if (!this.settings.autoReplaceEmptyTabs || leaf.view.getViewType() !== "empty") {
+      return;
+    }
+
+    this.replacingEmptyLeaf = true;
+
+    try {
+      await this.setLeafToHome(leaf, true);
+    } catch {
+      new Notice("New Tab Pins could not replace the empty tab.");
+    } finally {
+      this.replacingEmptyLeaf = false;
+    }
+  }
+
+  private async setLeafToHome(leaf: WorkspaceLeaf, active: boolean): Promise<void> {
+    await leaf.setViewState({
+      type: VIEW_TYPE_NEW_TAB_PINS,
+      active
+    });
+  }
+}
