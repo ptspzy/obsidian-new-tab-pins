@@ -5,6 +5,7 @@ import type NewTabPinsPlugin from "./main";
 
 export class NewTabPinsView extends ItemView {
   private searchInput: HTMLInputElement | null = null;
+  private draggedFilePath: string | null = null;
   private draggedPinnedPath: string | null = null;
 
   constructor(
@@ -122,12 +123,18 @@ export class NewTabPinsView extends ItemView {
 
   private renderPinned(parent: HTMLElement): void {
     const section = this.createSection(parent, "Pinned files", "Files you want one click away.");
-    const grid = section.createDiv({ cls: "ntp-grid ntp-pinned-grid" });
+    const grid = section.createDiv({
+      cls: "ntp-grid ntp-pinned-grid",
+      attr: {
+        "aria-label": "Pinned files drop zone"
+      }
+    });
+    this.bindPinnedGridDrop(grid);
 
     if (this.plugin.settings.pinnedFiles.length === 0) {
       grid.createDiv({
-        cls: "ntp-empty-card",
-        text: "Pin a Markdown file from the command palette or file menu."
+        cls: "ntp-empty-card ntp-drop-zone",
+        text: "Drop Markdown files here, or pin from search and recent files."
       });
       return;
     }
@@ -181,39 +188,49 @@ export class NewTabPinsView extends ItemView {
       });
       card.addEventListener("dragstart", (event) => {
         this.draggedPinnedPath = pin.path;
+        this.draggedFilePath = pin.path;
         card.addClass("is-dragging");
         this.contentEl.addClass("is-reordering");
-        event.dataTransfer?.setData("text/plain", pin.path);
+        this.writeDragData(event, pin.path);
 
         if (event.dataTransfer) {
           event.dataTransfer.effectAllowed = "move";
         }
       });
       card.addEventListener("dragover", (event) => {
-        if (!this.draggedPinnedPath || this.draggedPinnedPath === pin.path) {
+        const file = this.getDraggedMarkdownFile(event);
+
+        if (!file || file.path === pin.path) {
           return;
         }
 
         event.preventDefault();
+        event.stopPropagation();
         card.addClass("is-drop-target");
 
         if (event.dataTransfer) {
-          event.dataTransfer.dropEffect = "move";
+          event.dataTransfer.dropEffect = this.isPinned(file.path) ? "move" : "copy";
         }
       });
       card.addEventListener("dragleave", () => {
         card.removeClass("is-drop-target");
       });
       card.addEventListener("drop", (event) => {
-        const draggedPath = this.draggedPinnedPath ?? event.dataTransfer?.getData("text/plain");
+        const file = this.getDraggedMarkdownFile(event);
         event.preventDefault();
+        event.stopPropagation();
         this.clearDragState();
 
-        if (!draggedPath || draggedPath === pin.path) {
+        if (!file || file.path === pin.path) {
           return;
         }
 
-        void this.plugin.reorderPinned(draggedPath, pin.path);
+        if (this.isPinned(file.path)) {
+          void this.plugin.reorderPinned(file.path, pin.path);
+          return;
+        }
+
+        void this.plugin.pinFile(file, pin.path);
       });
       card.addEventListener("dragend", () => {
         this.clearDragState();
@@ -299,9 +316,91 @@ export class NewTabPinsView extends ItemView {
     return button;
   }
 
+  private bindPinnedGridDrop(grid: HTMLElement): void {
+    grid.addEventListener("dragover", (event) => {
+      const canDrop = this.canDropMarkdownFile(event);
+
+      if (!canDrop) {
+        return;
+      }
+
+      event.preventDefault();
+      grid.addClass("is-drop-target");
+      this.contentEl.addClass("is-pinning");
+
+      if (event.dataTransfer) {
+        const file = this.getDraggedMarkdownFile(event);
+        event.dataTransfer.dropEffect = file && this.isPinned(file.path) ? "move" : "copy";
+      }
+    });
+
+    grid.addEventListener("dragleave", (event) => {
+      if (event.relatedTarget instanceof Node && grid.contains(event.relatedTarget)) {
+        return;
+      }
+
+      grid.removeClass("is-drop-target");
+      this.contentEl.removeClass("is-pinning");
+    });
+
+    grid.addEventListener("drop", (event) => {
+      const file = this.getDraggedMarkdownFile(event);
+      event.preventDefault();
+      this.clearDragState();
+
+      if (!file) {
+        return;
+      }
+
+      if (this.isPinned(file.path)) {
+        void this.plugin.movePinnedToEnd(file.path);
+        return;
+      }
+
+      void this.plugin.pinFile(file);
+    });
+  }
+
+  private canDropMarkdownFile(event: DragEvent): boolean {
+    if (this.getDraggedMarkdownFile(event)) {
+      return true;
+    }
+
+    const types = event.dataTransfer ? Array.from(event.dataTransfer.types) : [];
+    return types.includes("text/plain") || types.includes("text/uri-list");
+  }
+
+  private getDraggedMarkdownFile(event: DragEvent): TFile | null {
+    const fileExplorerFile = this.plugin.getFileExplorerDraggedFile();
+    if (fileExplorerFile) {
+      return fileExplorerFile;
+    }
+
+    const values = [this.draggedFilePath, this.draggedPinnedPath];
+
+    if (event.dataTransfer) {
+      values.push(event.dataTransfer.getData("application/x-new-tab-pins-path"));
+      values.push(event.dataTransfer.getData("text/plain"));
+      values.push(event.dataTransfer.getData("text/uri-list"));
+    }
+
+    return this.plugin.getMarkdownFileFromDragData(values);
+  }
+
+  private writeDragData(event: DragEvent, path: string): void {
+    if (!event.dataTransfer) {
+      return;
+    }
+
+    event.dataTransfer.setData("application/x-new-tab-pins-path", path);
+    event.dataTransfer.setData("text/plain", path);
+  }
+
   private clearDragState(): void {
+    this.draggedFilePath = null;
     this.draggedPinnedPath = null;
     this.contentEl.removeClass("is-reordering");
+    this.contentEl.removeClass("is-pinning");
     this.contentEl
       .querySelectorAll(".is-dragging, .is-drop-target")
       .forEach((element) => {
@@ -312,7 +411,10 @@ export class NewTabPinsView extends ItemView {
   private createFileRow(parent: HTMLElement, cls: string, file: TFile): HTMLElement {
     const isPinned = this.isPinned(file.path);
     const row = parent.createDiv({
-      cls: `${cls} ntp-file-row`
+      cls: `${cls} ntp-file-row`,
+      attr: {
+        draggable: "true"
+      }
     });
     row.toggleClass("is-pinned", isPinned);
 
@@ -342,6 +444,19 @@ export class NewTabPinsView extends ItemView {
 
     openButton.addEventListener("click", () => {
       void this.plugin.openFile(file.path, this.leaf);
+    });
+    row.addEventListener("dragstart", (event) => {
+      this.draggedFilePath = file.path;
+      row.addClass("is-dragging");
+      this.contentEl.addClass("is-pinning");
+      this.writeDragData(event, file.path);
+
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = isPinned ? "move" : "copyMove";
+      }
+    });
+    row.addEventListener("dragend", () => {
+      this.clearDragState();
     });
 
     return row;

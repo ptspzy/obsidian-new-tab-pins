@@ -6,11 +6,17 @@ import {
   TFile,
   WorkspaceLeaf
 } from "obsidian";
+import type { Editor, MarkdownView } from "obsidian";
 import {
+  addPinnedFile,
+  createDefaultPinnedFiles,
   filterMarkdownFiles,
   getDisplayName,
+  getDragPathCandidates,
   getRecentModifiedFiles as selectRecentModifiedFiles,
   movePinnedFile,
+  movePinnedFileToEnd,
+  normalizeDragPath,
   removePinnedFile,
   reorderPinnedFile,
   restorePinnedFile,
@@ -28,6 +34,7 @@ export default class NewTabPinsPlugin extends Plugin {
   settings: NewTabPinsSettings = { ...DEFAULT_SETTINGS };
   private replacingEmptyLeaf = false;
   private replaceTimer: number | null = null;
+  private fileExplorerDraggedPath: string | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -40,10 +47,14 @@ export default class NewTabPinsPlugin extends Plugin {
     this.addSettingTab(new NewTabPinsSettingTab(this));
     this.registerCommands();
     this.registerFileMenu();
+    this.registerEditorMenu();
+    this.registerFileExplorerDragTracking();
     this.registerAutoReplaceEmptyTabs();
 
     this.app.workspace.onLayoutReady(() => {
-      this.scheduleAutoReplace(this.app.workspace.getLeaf(false));
+      void this.ensureDefaultPinnedFiles().then(() => {
+        this.scheduleAutoReplace(this.app.workspace.getLeaf(false));
+      });
     });
   }
 
@@ -84,24 +95,59 @@ export default class NewTabPinsPlugin extends Plugin {
     await this.setLeafToHome(leaf, true);
   }
 
-  async pinFile(file: TFile): Promise<void> {
+  async ensureDefaultPinnedFiles(): Promise<boolean> {
+    const defaultCount = Math.max(
+      0,
+      Math.floor(this.settings.defaultPinRecentCount ?? DEFAULT_SETTINGS.defaultPinRecentCount)
+    );
+
+    if (defaultCount === 0 || this.settings.defaultPinnedFilesSeeded) {
+      return false;
+    }
+
+    if (this.settings.pinnedFiles.length > 0) {
+      this.settings.defaultPinnedFilesSeeded = true;
+      await this.saveSettings();
+      return false;
+    }
+
+    const pinnedFiles = createDefaultPinnedFiles(
+      this.app.vault.getMarkdownFiles(),
+      defaultCount,
+      Date.now()
+    );
+
+    if (pinnedFiles.length === 0) {
+      return false;
+    }
+
+    this.settings.pinnedFiles = pinnedFiles;
+    this.settings.defaultPinnedFilesSeeded = true;
+    await this.saveSettings();
+    this.refreshViews();
+    return true;
+  }
+
+  async pinFile(file: TFile, beforePath?: string): Promise<void> {
     if (file.extension.toLowerCase() !== "md") {
       new Notice("New Tab Pins only supports Markdown files.");
       return;
     }
 
-    if (this.settings.pinnedFiles.some((item) => item.path === file.path)) {
+    const result = addPinnedFile(
+      this.settings.pinnedFiles,
+      file.path,
+      Date.now(),
+      beforePath
+    );
+
+    if (!result.added) {
       new Notice("File is already pinned.");
       return;
     }
 
-    this.settings.pinnedFiles = [
-      ...this.settings.pinnedFiles,
-      {
-        path: file.path,
-        createdAt: Date.now()
-      }
-    ];
+    this.settings.pinnedFiles = result.pinnedFiles;
+    this.settings.defaultPinnedFilesSeeded = true;
     await this.saveSettings();
     this.refreshViews();
     new Notice(`Pinned ${file.basename}.`);
@@ -122,6 +168,20 @@ export default class NewTabPinsPlugin extends Plugin {
 
   async movePinned(path: string, direction: -1 | 1): Promise<void> {
     this.settings.pinnedFiles = movePinnedFile(this.settings.pinnedFiles, path, direction);
+    await this.saveSettings();
+    this.refreshViews();
+  }
+
+  async movePinnedToEnd(path: string): Promise<void> {
+    const nextPinnedFiles = movePinnedFileToEnd(this.settings.pinnedFiles, path);
+    const currentOrder = this.settings.pinnedFiles.map((item) => item.path).join("\n");
+    const nextOrder = nextPinnedFiles.map((item) => item.path).join("\n");
+
+    if (nextOrder === currentOrder) {
+      return;
+    }
+
+    this.settings.pinnedFiles = nextPinnedFiles;
     await this.saveSettings();
     this.refreshViews();
   }
@@ -161,6 +221,42 @@ export default class NewTabPinsPlugin extends Plugin {
   getRecentModifiedFiles(): TFile[] {
     const pinnedPaths = new Set(this.settings.pinnedFiles.map((item) => item.path));
     return selectRecentModifiedFiles(this.app.vault.getMarkdownFiles(), pinnedPaths);
+  }
+
+  getMarkdownFileFromDragData(values: Array<string | null | undefined>): TFile | null {
+    for (const value of values) {
+      for (const candidate of getDragPathCandidates(value)) {
+        const file = this.getMarkdownFile(candidate);
+
+        if (file) {
+          return file;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  getFileExplorerDraggedFile(): TFile | null {
+    return this.fileExplorerDraggedPath ? this.getMarkdownFile(this.fileExplorerDraggedPath) : null;
+  }
+
+  getMarkdownFile(path: string): TFile | null {
+    const normalizedPath = normalizeDragPath(path);
+    const file = this.app.vault.getAbstractFileByPath(normalizedPath);
+
+    if (file instanceof TFile && file.extension.toLowerCase() === "md") {
+      return file;
+    }
+
+    const linkPath = normalizedPath.replace(/\.md$/i, "");
+    const linkedFile = this.app.metadataCache.getFirstLinkpathDest(linkPath, "");
+
+    if (linkedFile instanceof TFile && linkedFile.extension.toLowerCase() === "md") {
+      return linkedFile;
+    }
+
+    return null;
   }
 
   async openFile(path: string, leaf: WorkspaceLeaf = this.app.workspace.getLeaf(false)): Promise<void> {
@@ -278,22 +374,72 @@ export default class NewTabPinsPlugin extends Plugin {
           }
 
           const isPinned = this.settings.pinnedFiles.some((item) => item.path === file.path);
-
-          menu.addItem((item) => {
-            item
-              .setTitle(isPinned ? "Unpin from New Tab Pins" : "Pin to New Tab Pins")
-              .setIcon(isPinned ? "pin-off" : "pin")
-              .onClick(() => {
-                if (isPinned) {
-                  void this.unpinFile(file.path);
-                } else {
-                  void this.pinFile(file);
-                }
-              });
-          });
+          this.addPinToggleMenuItem(menu, file, isPinned);
         }
       )
     );
+  }
+
+  private registerEditorMenu(): void {
+    this.registerEvent(
+      this.app.workspace.on(
+        "editor-menu",
+        (menu: Menu, _editor: Editor, view: MarkdownView) => {
+          const file = view.file;
+
+          if (!(file instanceof TFile) || file.extension.toLowerCase() !== "md") {
+            return;
+          }
+
+          const isPinned = this.settings.pinnedFiles.some((item) => item.path === file.path);
+          this.addPinToggleMenuItem(menu, file, isPinned);
+        }
+      )
+    );
+  }
+
+  private addPinToggleMenuItem(menu: Menu, file: TFile, isPinned: boolean): void {
+    menu.addItem((item) => {
+      item
+        .setTitle(isPinned ? "Unpin from New Tab Pins" : "Pin to New Tab Pins")
+        .setIcon(isPinned ? "pin-off" : "pin")
+        .onClick(() => {
+          if (isPinned) {
+            void this.unpinFile(file.path);
+          } else {
+            void this.pinFile(file);
+          }
+        });
+    });
+  }
+
+  private registerFileExplorerDragTracking(): void {
+    this.registerDomEvent(
+      document,
+      "dragstart",
+      (event: DragEvent) => {
+        this.fileExplorerDraggedPath = this.getFileExplorerDragPath(event.target);
+      },
+      true
+    );
+
+    this.registerDomEvent(
+      document,
+      "dragend",
+      () => {
+        this.fileExplorerDraggedPath = null;
+      },
+      true
+    );
+  }
+
+  private getFileExplorerDragPath(target: EventTarget | null): string | null {
+    if (!(target instanceof HTMLElement)) {
+      return null;
+    }
+
+    const fileEl = target.closest<HTMLElement>(".nav-file-title[data-path]");
+    return fileEl?.getAttribute("data-path") ?? null;
   }
 
   private registerAutoReplaceEmptyTabs(): void {

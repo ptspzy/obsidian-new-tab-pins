@@ -50,6 +50,121 @@ export function getRecentModifiedFiles(
     .slice(0, limit);
 }
 
+export function getDragPathCandidates(value: string | null | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  const candidates = new Set<string>();
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  candidates.add(trimmed);
+
+  for (const line of trimmed.split(/\r?\n/)) {
+    if (line.trim()) {
+      candidates.add(line.trim());
+    }
+  }
+
+  const wikiLinkPattern = /!?\[\[([^#|\]]+)/g;
+  for (const match of trimmed.matchAll(wikiLinkPattern)) {
+    candidates.add(match[1].trim());
+  }
+
+  const markdownLinkPattern = /\]\(([^)]+)\)/g;
+  for (const match of trimmed.matchAll(markdownLinkPattern)) {
+    candidates.add(match[1].trim());
+  }
+
+  return Array.from(candidates);
+}
+
+export function normalizeDragPath(path: string): string {
+  let normalized = path.trim().replace(/^["']|["']$/g, "");
+
+  if (normalized.startsWith("<") && normalized.endsWith(">")) {
+    normalized = normalized.slice(1, -1);
+  }
+
+  const obsidianPath = getObsidianUriFilePath(normalized);
+  if (obsidianPath) {
+    normalized = obsidianPath;
+  }
+
+  if (normalized.startsWith("file://")) {
+    normalized = normalized.replace(/^file:\/+/, "");
+  }
+
+  try {
+    normalized = decodeURIComponent(normalized);
+  } catch {
+    // Keep the original text when it is not URL encoded.
+  }
+
+  return normalized.replace(/^\/+/, "");
+}
+
+function getObsidianUriFilePath(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "obsidian:") {
+      return null;
+    }
+
+    return url.searchParams.get("file") ?? url.searchParams.get("path");
+  } catch {
+    return null;
+  }
+}
+
+export function addPinnedFile(
+  pinnedFiles: PinnedFile[],
+  path: string,
+  createdAt: number,
+  beforePath?: string
+): { pinnedFiles: PinnedFile[]; added: boolean } {
+  if (pinnedFiles.some((item) => item.path === path)) {
+    return {
+      pinnedFiles: [...pinnedFiles],
+      added: false
+    };
+  }
+
+  const next = [...pinnedFiles];
+  const insertIndex = beforePath
+    ? next.findIndex((item) => item.path === beforePath)
+    : -1;
+  const normalizedIndex = insertIndex >= 0 ? insertIndex : next.length;
+  next.splice(normalizedIndex, 0, {
+    path,
+    createdAt
+  });
+
+  return {
+    pinnedFiles: next,
+    added: true
+  };
+}
+
+export function createDefaultPinnedFiles(
+  files: TFile[],
+  count: number,
+  createdAt: number
+): PinnedFile[] {
+  if (count <= 0) {
+    return [];
+  }
+
+  return getRecentModifiedFiles(files, new Set(), count).map((file, index) => ({
+    path: file.path,
+    createdAt: createdAt + index
+  }));
+}
+
 export function movePinnedFile(
   pinnedFiles: PinnedFile[],
   path: string,
@@ -70,6 +185,22 @@ export function movePinnedFile(
 
   const [item] = next.splice(currentIndex, 1);
   next.splice(targetIndex, 0, item);
+  return next;
+}
+
+export function movePinnedFileToEnd(
+  pinnedFiles: PinnedFile[],
+  path: string
+): PinnedFile[] {
+  const currentIndex = pinnedFiles.findIndex((item) => item.path === path);
+
+  if (currentIndex < 0 || currentIndex === pinnedFiles.length - 1) {
+    return [...pinnedFiles];
+  }
+
+  const next = [...pinnedFiles];
+  const [item] = next.splice(currentIndex, 1);
+  next.push(item);
   return next;
 }
 

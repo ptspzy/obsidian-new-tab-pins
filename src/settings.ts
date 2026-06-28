@@ -13,6 +13,8 @@ export type NewTabPinsSettings = {
   subtitle: string;
   autoReplaceEmptyTabs: boolean;
   layoutDensity: LayoutDensity;
+  defaultPinRecentCount: number;
+  defaultPinnedFilesSeeded: boolean;
   recentFilesCollapsed: boolean;
   pinnedFiles: PinnedFile[];
 };
@@ -22,6 +24,8 @@ export const DEFAULT_SETTINGS: NewTabPinsSettings = {
   subtitle: "Pinned notes and recent work from this vault.",
   autoReplaceEmptyTabs: true,
   layoutDensity: "comfortable",
+  defaultPinRecentCount: 4,
+  defaultPinnedFilesSeeded: false,
   recentFilesCollapsed: false,
   pinnedFiles: []
 };

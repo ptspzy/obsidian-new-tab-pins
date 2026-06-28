@@ -65,5 +65,26 @@ export class NewTabPinsSettingTab extends PluginSettingTab {
             this.plugin.refreshViews();
           });
       });
+
+    new Setting(containerEl)
+      .setName("Starter pins")
+      .setDesc(
+        "When there are no pinned files yet, pin this many recent Markdown files once. Set to Off to start empty."
+      )
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("0", "Off")
+          .addOption("2", "2 recent files")
+          .addOption("4", "4 recent files")
+          .addOption("6", "6 recent files")
+          .addOption("8", "8 recent files")
+          .setValue(String(this.plugin.settings.defaultPinRecentCount))
+          .onChange(async (value) => {
+            this.plugin.settings.defaultPinRecentCount = Number(value);
+            this.plugin.settings.defaultPinnedFilesSeeded = false;
+            await this.plugin.saveSettings();
+            await this.plugin.ensureDefaultPinnedFiles();
+          });
+      });
   }
 }

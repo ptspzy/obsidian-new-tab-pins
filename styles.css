@@ -270,6 +270,21 @@
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
+.ntp-pinned-grid {
+  border-radius: var(--ntp-radius);
+  min-height: 92px;
+  outline: 1px solid transparent;
+  outline-offset: 4px;
+  transition:
+    background-color 140ms ease,
+    outline-color 140ms ease;
+}
+
+.ntp-pinned-grid.is-drop-target {
+  background: var(--ntp-accent-soft);
+  outline-color: var(--ntp-accent-line);
+}
+
 .ntp-card {
   align-items: start;
   background: var(--ntp-surface);
@@ -321,6 +336,10 @@
 }
 
 .ntp-view-root.is-reordering {
+  user-select: none;
+}
+
+.ntp-view-root.is-pinning {
   user-select: none;
 }
 
@@ -484,6 +503,14 @@
   width: 100%;
 }
 
+.ntp-file-row[draggable="true"] {
+  cursor: grab;
+}
+
+.ntp-file-row.is-dragging {
+  opacity: 0.62;
+}
+
 .ntp-file-row.is-pinned {
   border-color: color-mix(in srgb, var(--ntp-accent) 32%, var(--ntp-border));
 }
@@ -562,6 +589,12 @@
   padding: 17px;
 }
 
+.ntp-drop-zone {
+  align-items: center;
+  display: flex;
+  min-height: 92px;
+}
+
 .ntp-empty-inline {
   color: var(--text-muted);
   font-size: var(--font-ui-small);
@@ -634,6 +667,7 @@
   .ntp-card,
   .ntp-action,
   .ntp-file-row,
+  .ntp-pinned-grid,
   .ntp-section-toggle {
     transition: none;
   }

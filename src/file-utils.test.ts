@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { TFile } from "obsidian";
 import {
+  addPinnedFile,
+  createDefaultPinnedFiles,
   filterMarkdownFiles,
   getDisplayName,
+  getDragPathCandidates,
   getRecentModifiedFiles,
   isMarkdownFile,
   movePinnedFile,
+  movePinnedFileToEnd,
+  normalizeDragPath,
   removePinnedFile,
   reorderPinnedFile,
   restorePinnedFile
@@ -66,6 +71,46 @@ describe("file helpers", () => {
     ]);
   });
 
+  it("extracts vault Markdown paths from drag payloads", () => {
+    expect(getDragPathCandidates("[[Projects/Plan|Plan]]").map(normalizeDragPath)).toContain(
+      "Projects/Plan"
+    );
+    expect(
+      normalizeDragPath("obsidian://open?vault=Dev&file=Projects%2FPlan.md")
+    ).toBe("Projects/Plan.md");
+  });
+
+  it("adds pinned files before a target without creating duplicates", () => {
+    const pinned: PinnedFile[] = [
+      { path: "A.md", createdAt: 1 },
+      { path: "C.md", createdAt: 3 }
+    ];
+
+    const inserted = addPinnedFile(pinned, "B.md", 2, "C.md");
+    const duplicate = addPinnedFile(inserted.pinnedFiles, "B.md", 4);
+
+    expect(inserted.added).toBe(true);
+    expect(inserted.pinnedFiles.map((item) => item.path)).toEqual(["A.md", "B.md", "C.md"]);
+    expect(duplicate.added).toBe(false);
+    expect(duplicate.pinnedFiles.map((item) => item.path)).toEqual(["A.md", "B.md", "C.md"]);
+    expect(pinned.map((item) => item.path)).toEqual(["A.md", "C.md"]);
+  });
+
+  it("creates starter pins from the most recently modified Markdown files", () => {
+    const files = [
+      file("A.md", 10),
+      file("B.md", 30),
+      file("C.md", 20),
+      file("D.png", 40)
+    ];
+
+    expect(createDefaultPinnedFiles(files, 2, 100)).toEqual([
+      { path: "B.md", createdAt: 100 },
+      { path: "C.md", createdAt: 101 }
+    ]);
+    expect(createDefaultPinnedFiles(files, 0, 100)).toEqual([]);
+  });
+
   it("moves pinned files within bounds without mutating the input", () => {
     const pinned: PinnedFile[] = [
       { path: "A.md", createdAt: 1 },
@@ -83,6 +128,27 @@ describe("file helpers", () => {
       "B.md",
       "C.md"
     ]);
+    expect(pinned.map((item) => item.path)).toEqual(["A.md", "B.md", "C.md"]);
+  });
+
+  it("moves a pinned file to the end when dropped on the pinned area", () => {
+    const pinned: PinnedFile[] = [
+      { path: "A.md", createdAt: 1 },
+      { path: "B.md", createdAt: 2 },
+      { path: "C.md", createdAt: 3 }
+    ];
+
+    expect(movePinnedFileToEnd(pinned, "A.md").map((item) => item.path)).toEqual([
+      "B.md",
+      "C.md",
+      "A.md"
+    ]);
+    expect(movePinnedFileToEnd(pinned, "C.md").map((item) => item.path)).toEqual([
+      "A.md",
+      "B.md",
+      "C.md"
+    ]);
+    expect(movePinnedFileToEnd(pinned, "Missing.md")).toEqual(pinned);
     expect(pinned.map((item) => item.path)).toEqual(["A.md", "B.md", "C.md"]);
   });
 

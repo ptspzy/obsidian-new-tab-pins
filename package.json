@@ -1,6 +1,7 @@
 {
   "name": "obsidian-new-tab-pins",
   "version": "0.1.0",
+  "packageManager": "pnpm@10.16.1",
   "description": "Browser-like new tab home view for Obsidian with pinned notes.",
   "main": "main.js",
   "scripts": {
