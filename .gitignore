@@ -1,6 +1,17 @@
 node_modules/
 dist/
 main.js
+.env
+.env.*
+!.env.example
+.npmrc
+.obsidian/
+data.json
+*.key
+*.mobileprovision
+*.p12
+*.pem
+*.pfx
 .superpowers/
 docs/superpowers/
 .DS_Store

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "approvedEmailSha256": [
+    "af4e71ea01adad9aa59b3ac1965f9fcdd89c9ec36eafe6f9ababfea541e39b5b",
+    "e3253608290e6f19d24f246b4846187efda2307daf2b20efc3656757f8f57dfc"
+  ],
+  "approvedImages": {
+    "assets/new-tab-pins-home.jpg": "43f52ad6006c93042d84d20326420ece88749ef1146b4ff0bc6114397f8dbe2e"
+  },
+  "allowedUrlHosts": [
+    "docs.obsidian.md",
+    "github.com",
+    "obsidian.md",
+    "opencollective.com",
+    "registry.npmjs.org",
+    "tidelift.com"
+  ],
+  "allowedObsidianVaultNames": [
+    "Dev"
+  ]
+}
