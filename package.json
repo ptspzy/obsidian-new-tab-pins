@@ -2,15 +2,15 @@
   "name": "obsidian-new-tab-pins",
   "version": "0.1.0",
   "packageManager": "pnpm@10.16.1",
-  "description": "Browser-like new tab home view for Obsidian with pinned notes.",
+  "description": "Turn every empty Obsidian tab into a calm launcher for pinned notes, instant search, and recent files.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "test": "vitest run",
     "verify:release": "node scripts/verify-release.mjs",
-    "release:check": "npm test && npm run build && npm run verify:release",
-    "release:stage": "npm run release:check && node scripts/stage-release.mjs"
+    "release:check": "pnpm test && pnpm build && pnpm verify:release",
+    "release:stage": "pnpm release:check && node scripts/stage-release.mjs"
   },
   "keywords": [
     "obsidian",
@@ -20,6 +20,14 @@
   ],
   "author": "Joah Peng",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ptspzy/obsidian-new-tab-pins.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ptspzy/obsidian-new-tab-pins/issues"
+  },
+  "homepage": "https://github.com/ptspzy/obsidian-new-tab-pins#readme",
   "devDependencies": {
     "@types/node": "^20.11.30",
     "builtin-modules": "^3.3.0",
