@@ -319,7 +319,7 @@ export function formatFinding(finding) {
 }
 
 function getExtension(filePath) {
-  const match = filePath.toLowerCase().match(/\.[^.\/]+$/);
+  const match = filePath.toLowerCase().match(/\.[^./]+$/);
   return match?.[0] ?? "";
 }
 

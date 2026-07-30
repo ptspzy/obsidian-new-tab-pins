@@ -141,10 +141,10 @@
 .ntp-view-root input.ntp-search {
   -webkit-appearance: none;
   appearance: none;
-  background: transparent !important;
-  border: 0 !important;
+  background: transparent;
+  border: 0;
   border-radius: 0;
-  box-shadow: none !important;
+  box-shadow: none;
   box-sizing: border-box;
   caret-color: var(--text-normal);
   color: var(--text-normal);
@@ -157,7 +157,7 @@
   min-height: 0;
   min-width: 0;
   outline: none;
-  padding: 0 !important;
+  padding: 0;
   width: 100%;
 }
 
@@ -178,9 +178,9 @@
 .ntp-view-root input.ntp-search:focus,
 .ntp-view-root input.ntp-search:focus-visible,
 .ntp-view-root input.ntp-search:active {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   outline: none;
 }
 
@@ -291,12 +291,11 @@
   border: 1px solid var(--ntp-border);
   border-radius: var(--ntp-radius);
   display: grid;
-  column-gap: 9px;
+  gap: 0 9px;
   grid-template-columns: 22px minmax(0, 1fr) 30px;
   min-height: 92px;
   padding: 13px;
   position: relative;
-  row-gap: 0;
   transition:
     background-color 140ms ease,
     border-color 140ms ease,

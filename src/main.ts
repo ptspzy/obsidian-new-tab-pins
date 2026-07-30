@@ -27,6 +27,7 @@ import { NewTabPinsView } from "./NewTabPinsView";
 import {
   DEFAULT_SETTINGS,
   NewTabPinsSettings,
+  normalizeSettings,
   VIEW_TYPE_NEW_TAB_PINS
 } from "./settings";
 
@@ -59,8 +60,6 @@ export default class NewTabPinsPlugin extends Plugin {
   }
 
   onunload(): void {
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_NEW_TAB_PINS);
-
     if (this.replaceTimer !== null) {
       window.clearTimeout(this.replaceTimer);
       this.replaceTimer = null;
@@ -68,10 +67,8 @@ export default class NewTabPinsPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = {
-      ...DEFAULT_SETTINGS,
-      ...(await this.loadData())
-    };
+    const storedData: unknown = await this.loadData();
+    this.settings = normalizeSettings(storedData);
   }
 
   async saveSettings(): Promise<void> {
@@ -82,7 +79,7 @@ export default class NewTabPinsPlugin extends Plugin {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_NEW_TAB_PINS);
 
     if (leaves.length > 0) {
-      await this.app.workspace.revealLeaf(leaves[0]);
+      this.app.workspace.setActiveLeaf(leaves[0], { focus: true });
       return;
     }
 
@@ -280,16 +277,17 @@ export default class NewTabPinsPlugin extends Plugin {
   }
 
   private showUnpinUndoNotice(removed: RemovedPinnedFile): void {
-    const fragment = document.createDocumentFragment();
-    const message = document.createElement("span");
-    message.textContent = `Removed ${getDisplayName(removed.item.path)}. `;
-    fragment.appendChild(message);
-
-    const undo = document.createElement("button");
-    undo.type = "button";
-    undo.className = "ntp-notice-action";
-    undo.textContent = "Undo";
-    fragment.appendChild(undo);
+    const fragment = createFragment();
+    fragment.createSpan({
+      text: `Removed ${getDisplayName(removed.item.path)}. `
+    });
+    const undo = fragment.createEl("button", {
+      cls: "ntp-notice-action",
+      text: "Undo",
+      attr: {
+        type: "button"
+      }
+    });
 
     const notice = new Notice(fragment, 8000);
     undo.addEventListener("click", () => {

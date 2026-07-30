@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -47,6 +49,12 @@ jobs:
             echo "Tag $TAG must match manifest.json version $VERSION."
             exit 1
           fi
+
+      - name: Attest release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: dist/*
 
       - name: Create or update GitHub release
         if: startsWith(github.ref, 'refs/tags/')

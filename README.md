@@ -6,7 +6,7 @@ Turn every empty Obsidian tab into a calm launcher for your vault.
 
 New Tab Pins puts search, important notes, and recent work in one focused home view—without making you build or maintain a dashboard note.
 
-> **Public beta:** Install it with BRAT today. Submission to the Obsidian Community Plugin directory is next.
+> **Community review:** The plugin has been submitted to the Obsidian Community Plugin directory. Until the review is complete, install it with BRAT or from the latest GitHub release.
 
 ## Why New Tab Pins
 
