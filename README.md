@@ -91,6 +91,18 @@ Run the complete pre-release gate:
 pnpm release:check
 ```
 
+Run the complete privacy gate, including the pinned Gitleaks binary:
+
+```bash
+pnpm privacy:full
+```
+
+Installing dependencies configures the versioned pre-commit hook in `.githooks/`.
+The hook blocks unapproved author emails, local absolute paths, credential-shaped
+values, private URL parameters, sensitive filenames, and unreviewed image changes.
+Approved public identities, URL hosts, and reviewed image hashes live in
+`privacy-allowlist.json`.
+
 Stage the three files required by an Obsidian GitHub release:
 
 ```bash

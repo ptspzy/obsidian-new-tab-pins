@@ -7,9 +7,14 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/privacy-policy.node-test.mjs",
+    "prepare": "node scripts/setup-git-hooks.mjs",
+    "privacy:check": "node scripts/privacy-check.mjs --all",
+    "privacy:staged": "node scripts/privacy-check.mjs --staged",
+    "privacy:gitleaks": "node scripts/run-gitleaks.mjs",
+    "privacy:full": "pnpm privacy:check && pnpm privacy:gitleaks",
     "verify:release": "node scripts/verify-release.mjs",
-    "release:check": "pnpm test && pnpm build && pnpm verify:release",
+    "release:check": "pnpm privacy:check && pnpm test && pnpm build && pnpm verify:release",
     "release:stage": "pnpm release:check && node scripts/stage-release.mjs"
   },
   "keywords": [
