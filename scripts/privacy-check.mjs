@@ -11,10 +11,18 @@ import {
 } from "./privacy-policy.mjs";
 
 const modes = new Set(process.argv.slice(2));
-const mode = modes.has("--staged") ? "staged" : modes.has("--all") ? "all" : null;
+const mode = modes.has("--staged")
+  ? "staged"
+  : modes.has("--all")
+    ? "all"
+    : modes.has("--artifacts")
+      ? "artifacts"
+      : null;
 
 if (!mode || modes.size !== 1) {
-  console.error("Usage: node scripts/privacy-check.mjs --staged|--all");
+  console.error(
+    "Usage: node scripts/privacy-check.mjs --staged|--all|--artifacts"
+  );
   process.exit(2);
 }
 
@@ -43,13 +51,18 @@ if (configErrors.length > 0) {
 const files =
   mode === "staged"
     ? gitNullList(["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"])
-    : gitNullList(["ls-files", "-z"]);
+    : mode === "artifacts"
+      ? ["main.js", "manifest.json", "styles.css"]
+      : gitNullList(["ls-files", "--cached", "--others", "--exclude-standard", "-z"]);
 const findings = [];
 
 for (const filePath of files) {
   const fileMode = gitText(["ls-files", "-s", "--", filePath]).split(/\s+/)[0];
 
-  if (fileMode === "120000") {
+  if (
+    fileMode === "120000" ||
+    (mode !== "staged" && isWorkingTreeSymlink(filePath))
+  ) {
     findings.push({
       file: filePath,
       category: "tracked-symlink"
@@ -72,7 +85,7 @@ if (mode === "staged") {
       category: authorEmail ? "unapproved-email" : "missing-author-email"
     });
   }
-} else {
+} else if (mode === "all") {
   const historyEmails = gitText(
     ["log", "--all", "--format=%ae%n%ce"],
     true
@@ -107,7 +120,13 @@ if (findings.length > 0) {
 }
 
 console.log(
-  `Privacy check passed (${files.length} ${mode === "staged" ? "staged" : "tracked"} files).`
+  `Privacy check passed (${files.length} ${
+    mode === "staged"
+      ? "staged"
+      : mode === "artifacts"
+        ? "release artifact"
+        : "repository"
+  } files).`
 );
 
 function readRepositoryFile(filePath, readMode) {
@@ -116,6 +135,14 @@ function readRepositoryFile(filePath, readMode) {
   }
 
   return fs.readFileSync(path.join(root, filePath));
+}
+
+function isWorkingTreeSymlink(filePath) {
+  try {
+    return fs.lstatSync(path.join(root, filePath)).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 function gitText(args, allowFailure = false) {

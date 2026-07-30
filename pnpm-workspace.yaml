@@ -1,5 +1,12 @@
 overrides:
   postcss: 8.5.18
 
+peerDependencyRules:
+  allowedVersions:
+    "eslint-plugin-obsidianmd>obsidian": "1.13.0"
+
 onlyBuiltDependencies:
   - esbuild
+
+allowBuilds:
+  esbuild: true
