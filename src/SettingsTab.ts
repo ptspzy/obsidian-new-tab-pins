@@ -10,7 +10,9 @@ export class NewTabPinsSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "New Tab Pins" });
+    new Setting(containerEl)
+      .setName("New Tab Pins")
+      .setHeading();
 
     new Setting(containerEl)
       .setName("Home title")

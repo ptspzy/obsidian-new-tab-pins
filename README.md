@@ -1,91 +1,108 @@
 # New Tab Pins
 
-New Tab Pins is an Obsidian plugin that adds a browser-like home tab for large vaults. It gives you a focused search box, a pinned notes grid, and a recent modified files section.
+Turn every empty Obsidian tab into a calm launcher for your vault.
 
-## Features
+![New Tab Pins home view](assets/new-tab-pins-home.jpg)
 
-- Open a custom home tab from the command palette.
-- Optionally replace newly focused empty tabs with the home view.
-- Pin and unpin Markdown files from commands or the file menu.
-- Search Markdown files by title or path.
-- Show recent modified Markdown files.
-- Customize the home title, subtitle, layout density, and empty-tab replacement setting.
+New Tab Pins puts search, important notes, and recent work in one focused home view—without making you build or maintain a dashboard note.
+
+> **Public beta:** Install it with BRAT today. Submission to the Obsidian Community Plugin directory is next.
+
+## Why New Tab Pins
+
+- **Keep key notes one click away.** Pin a Markdown file from its context menu or drag it onto the home view.
+- **Find notes immediately.** Search Markdown files by title or path.
+- **Resume recent work.** Jump back into recently modified notes.
+- **Stay focused.** No statistics, widgets, or dashboard note to maintain.
+- **Keep your notes private.** The plugin makes no network requests and never modifies note contents.
+
+## Install the public beta
+
+### BRAT
+
+1. Install and enable the [BRAT](https://github.com/TfTHacker/obsidian42-brat) community plugin.
+2. Run **BRAT: Add a beta plugin for testing** from the command palette.
+3. Paste this repository URL:
+
+   ```text
+   https://github.com/ptspzy/obsidian-new-tab-pins
+   ```
+
+4. Enable **New Tab Pins** in **Settings → Community plugins**.
+
+### Manual installation
+
+Download `manifest.json`, `main.js`, and `styles.css` from the [latest release](https://github.com/ptspzy/obsidian-new-tab-pins/releases/latest), then copy them into:
+
+```text
+<your-vault>/.obsidian/plugins/new-tab-pins/
+```
+
+Reload Obsidian and enable **New Tab Pins** in **Settings → Community plugins**.
+
+## Use it
+
+1. Run **New Tab Pins: Open home tab** from the command palette.
+2. Pin a note from the file explorer context menu, or drag a Markdown file onto the pinned area.
+3. Drag pinned notes to reorder them.
+4. Search your vault or open a recently modified note from the same view.
+
+Available commands:
+
+- **Open home tab**
+- **Replace current tab with home**
+- **Pin current file**
+- **Unpin current file**
+
+## Settings
+
+- Home title and subtitle
+- Automatically replace newly focused empty tabs
+- Comfortable or compact layout density
+- Starter pins used when no notes have been pinned yet
+
+## Privacy and data safety
+
+New Tab Pins:
+
+- does not connect to the internet;
+- does not collect analytics;
+- does not create, edit, rename, or delete notes;
+- stores only its settings and pinned file paths in Obsidian's plugin data.
+
+## Compatibility
+
+The custom home view and commands use stable Obsidian plugin APIs. **Auto-open on empty tabs** relies on Obsidian exposing blank tabs as an `empty` view type; if a future Obsidian update changes that behavior, disable the setting and open the home view from the command palette.
+
+The plugin supports desktop and mobile. Drag-to-pin and drag-to-reorder are designed primarily for desktop use.
 
 ## Development
 
-```bash
-npm install
-npm run dev
-```
-
-`npm run dev` watches `src/main.ts` and writes `main.js`.
-
-## Build
+This project uses pnpm:
 
 ```bash
-npm run build
+pnpm install
+pnpm dev
 ```
 
-The build creates `main.js` in the plugin root. Obsidian also needs `manifest.json` and `styles.css`.
-
-## Test and Release Checks
-
-Run the full pre-release gate before publishing:
+Run the complete pre-release gate:
 
 ```bash
-npm run release:check
+pnpm release:check
 ```
 
-This runs unit tests, production TypeScript/build checks, and release asset validation.
-
-To stage the exact files that need to be attached to a GitHub release:
+Stage the three files required by an Obsidian GitHub release:
 
 ```bash
-npm run release:stage
+pnpm release:stage
 ```
 
-The staged files are written to `dist/`:
+The assets are written to `dist/`.
 
-```txt
-manifest.json
-main.js
-styles.css
-```
+## Feedback
 
-## Publishing
+Found a bug or have a focused feature request? [Open an issue](https://github.com/ptspzy/obsidian-new-tab-pins/issues).
 
-1. Confirm `manifest.json`, `package.json`, and `versions.json` use the same plugin version.
-2. Run `npm run release:stage`.
-3. Commit the source, `manifest.json`, `versions.json`, `README.md`, `LICENSE`, `main.js`, and `styles.css`.
-4. Push a Git tag that exactly matches the manifest version, for example `0.1.0`.
-5. Create or verify the GitHub release for that tag and attach `dist/manifest.json`, `dist/main.js`, and `dist/styles.css`.
-6. Submit the GitHub repository from the Obsidian Community directory after the release exists.
+## License
 
-## Manual Installation
-
-Create this folder inside a test vault:
-
-```txt
-.obsidian/plugins/new-tab-pins/
-```
-
-Copy these files into it:
-
-```txt
-manifest.json
-main.js
-styles.css
-```
-
-Reload Obsidian, enable community plugins, then enable **New Tab Pins**.
-
-## Commands
-
-- `New Tab Pins: Open home tab`
-- `New Tab Pins: Replace current tab with home`
-- `New Tab Pins: Pin current file`
-- `New Tab Pins: Unpin current file`
-
-## Compatibility Note
-
-The stable core of the plugin is the custom Obsidian view and commands. The setting **Auto-open on empty tabs** tries to replace Obsidian empty tabs with the home view. That behavior depends on Obsidian exposing empty tabs as an `empty` view type. If this stops working in a future Obsidian version, disable the setting and use the command palette entry.
+[MIT](LICENSE)

@@ -3,7 +3,7 @@
   "name": "New Tab Pins",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
-  "description": "A browser-like new tab home view for pinned notes and recent modified files.",
+  "description": "Turn every empty tab into a calm launcher for pinned notes, instant search, and recent files.",
   "author": "Joah Peng",
   "authorUrl": "https://github.com/ptspzy",
   "isDesktopOnly": false
