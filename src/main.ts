@@ -10,7 +10,7 @@ import type { Editor, MarkdownView } from "obsidian";
 import {
   addPinnedFile,
   createDefaultPinnedFiles,
-  filterMarkdownFiles,
+  filterFiles,
   getDisplayName,
   getDragPathCandidates,
   getRecentModifiedFiles as selectRecentModifiedFiles,
@@ -34,10 +34,12 @@ import {
 export default class NewTabPinsPlugin extends Plugin {
   settings: NewTabPinsSettings = { ...DEFAULT_SETTINGS };
   private replacingEmptyLeaf = false;
+  private unloaded = false;
   private replaceTimer: number | null = null;
   private fileExplorerDraggedPath: string | null = null;
 
   async onload(): Promise<void> {
+    this.unloaded = false;
     await this.loadSettings();
 
     this.registerView(
@@ -54,12 +56,14 @@ export default class NewTabPinsPlugin extends Plugin {
 
     this.app.workspace.onLayoutReady(() => {
       void this.ensureDefaultPinnedFiles().then(() => {
-        this.scheduleAutoReplace(this.app.workspace.getLeaf(false));
+        // Inspect the restored layout without creating a navigable leaf.
+        this.scheduleAutoReplace(this.app.workspace.getMostRecentLeaf());
       });
     });
   }
 
   onunload(): void {
+    this.unloaded = true;
     if (this.replaceTimer !== null) {
       window.clearTimeout(this.replaceTimer);
       this.replaceTimer = null;
@@ -212,7 +216,7 @@ export default class NewTabPinsPlugin extends Plugin {
   }
 
   getSearchResults(query: string): TFile[] {
-    return filterMarkdownFiles(this.app.vault.getMarkdownFiles(), query);
+    return filterFiles(this.app.vault.getFiles(), query);
   }
 
   getRecentModifiedFiles(): TFile[] {
@@ -449,12 +453,13 @@ export default class NewTabPinsPlugin extends Plugin {
   }
 
   private scheduleAutoReplace(leaf: WorkspaceLeaf | null): void {
-    if (!leaf || !this.settings.autoReplaceEmptyTabs || this.replacingEmptyLeaf) {
-      return;
-    }
-
     if (this.replaceTimer !== null) {
       window.clearTimeout(this.replaceTimer);
+      this.replaceTimer = null;
+    }
+
+    if (!leaf || !this.canReplaceEmptyLeaf(leaf)) {
+      return;
     }
 
     this.replaceTimer = window.setTimeout(() => {
@@ -463,8 +468,18 @@ export default class NewTabPinsPlugin extends Plugin {
     }, 75);
   }
 
+  private canReplaceEmptyLeaf(leaf: WorkspaceLeaf): boolean {
+    return !this.unloaded &&
+      this.app.workspace.layoutReady &&
+      this.settings.autoReplaceEmptyTabs &&
+      !this.replacingEmptyLeaf &&
+      this.app.workspace.getMostRecentLeaf() === leaf &&
+      leaf.view.getViewType() === "empty";
+  }
+
   private async replaceEmptyLeaf(leaf: WorkspaceLeaf): Promise<void> {
-    if (!this.settings.autoReplaceEmptyTabs || leaf.view.getViewType() !== "empty") {
+    // Focus, view state, or plugin settings may change during the debounce.
+    if (!this.canReplaceEmptyLeaf(leaf)) {
       return;
     }
 

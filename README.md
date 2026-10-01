@@ -11,7 +11,7 @@ New Tab Pins puts search, important notes, and recent work in one focused home v
 ## Why New Tab Pins
 
 - **Keep key notes one click away.** Pin a Markdown file from its context menu or drag it onto the home view.
-- **Find notes immediately.** Search Markdown files by title or path.
+- **Find files immediately.** Search vault files by title or path, including Bases, canvases, and attachments.
 - **Resume recent work.** Jump back into recently modified notes.
 - **Stay focused.** No statistics, widgets, or dashboard note to maintain.
 - **Keep your notes private.** The plugin makes no network requests and never modifies note contents.

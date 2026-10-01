@@ -3,7 +3,7 @@ import type { TFile } from "obsidian";
 import {
   addPinnedFile,
   createDefaultPinnedFiles,
-  filterMarkdownFiles,
+  filterFiles,
   getDisplayName,
   getDragPathCandidates,
   getRecentModifiedFiles,
@@ -21,7 +21,7 @@ function file(path: string, mtime: number): TFile {
   return {
     path,
     name: path.split("/").pop() ?? path,
-    basename: (path.split("/").pop() ?? path).replace(/\.md$/i, ""),
+    basename: (path.split("/").pop() ?? path).replace(/\.[^.]+$/, ""),
     extension: path.split(".").pop() ?? "",
     stat: {
       ctime: mtime - 100,
@@ -40,21 +40,32 @@ describe("file helpers", () => {
   it("creates readable display names from paths", () => {
     expect(getDisplayName("Projects/New Tab Pins.md")).toBe("New Tab Pins");
     expect(getDisplayName("Daily/2026-06-03.MD")).toBe("2026-06-03");
+    expect(getDisplayName("Projects/Plan.base")).toBe("Plan.base");
   });
 
-  it("filters Markdown files by name and path", () => {
+  it("searches names and paths across Markdown, Bases, canvases, and attachments", () => {
     const files = [
-      file("Projects/New Tab Pins.md", 3),
-      file("Areas/Obsidian Plugins.md", 2),
-      file("Assets/New Tab Screenshot.png", 1)
+      file("Projects/Plan.md", 5),
+      file("Projects/Plan.base", 4),
+      file("Projects/Plan.canvas", 3),
+      file("Assets/Plan.pdf", 2),
+      file("Assets/Plan.png", 1),
+      file("Other/Readme.txt", 0)
     ];
 
-    expect(filterMarkdownFiles(files, "tab").map((item) => item.path)).toEqual([
-      "Projects/New Tab Pins.md"
-    ]);
-    expect(filterMarkdownFiles(files, "areas").map((item) => item.path)).toEqual([
-      "Areas/Obsidian Plugins.md"
-    ]);
+    expect(filterFiles(files, " PLAN ")).toEqual(files.slice(0, 5));
+    expect(filterFiles(files, "projects/")).toEqual(files.slice(0, 3));
+    expect(filterFiles(files, ".BASE")).toEqual([files[1]]);
+    expect(filterFiles(files, "readme")).toEqual([files[5]]);
+    expect(filterFiles(files, "missing")).toEqual([]);
+  });
+
+  it("returns no results for blank searches and respects the result limit", () => {
+    const files = Array.from({ length: 35 }, (_, i) => file(`Plan ${i}.base`, i));
+    expect(filterFiles(files, "   ")).toEqual([]);
+    expect(filterFiles(files, "Plan")).toEqual(files.slice(0, 30));
+    expect(filterFiles(files, "Plan", 2)).toEqual(files.slice(0, 2));
+    expect(files).toHaveLength(35);
   });
 
   it("returns recent modified Markdown files and excludes pinned paths", () => {
