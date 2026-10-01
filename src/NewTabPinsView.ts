@@ -1,5 +1,5 @@
 import { ItemView, setIcon, TFile, WorkspaceLeaf } from "obsidian";
-import { getDisplayName } from "./file-utils";
+import { getDisplayName, isMarkdownFile } from "./file-utils";
 import { VIEW_TYPE_NEW_TAB_PINS } from "./settings";
 import type NewTabPinsPlugin from "./main";
 
@@ -86,8 +86,8 @@ export class NewTabPinsView extends ItemView {
         enterkeyhint: "search",
         role: "searchbox",
         spellcheck: "false",
-        placeholder: "Search notes, e.g. API key...",
-        "aria-label": "Search notes"
+        placeholder: "Search files...",
+        "aria-label": "Search files"
       }
     });
 
@@ -112,7 +112,7 @@ export class NewTabPinsView extends ItemView {
     }
 
     if (results.length === 0) {
-      parent.createDiv({ cls: "ntp-empty-inline", text: "No matching Markdown files." });
+      parent.createDiv({ cls: "ntp-empty-inline", text: "No matching files." });
       return;
     }
 
@@ -410,42 +410,51 @@ export class NewTabPinsView extends ItemView {
 
   private createFileRow(parent: HTMLElement, cls: string, file: TFile): HTMLElement {
     const isPinned = this.isPinned(file.path);
+    const canPin = isMarkdownFile(file);
+    const displayName = getDisplayName(file.path);
     const row = parent.createDiv({
       cls: `${cls} ntp-file-row`,
       attr: {
-        draggable: "true"
+        draggable: canPin ? "true" : "false"
       }
     });
     row.toggleClass("is-pinned", isPinned);
 
     const icon = row.createSpan({ cls: "ntp-file-icon" });
-    setIcon(icon, "file-text");
+    setIcon(icon, canPin ? "file-text" : "file");
 
     const openButton = row.createEl("button", {
       cls: "ntp-file-open",
       attr: {
         type: "button",
-        "aria-label": `Open ${file.basename}`
+        "aria-label": `Open ${displayName}`
       }
     });
     const body = openButton.createDiv({ cls: "ntp-file-body" });
-    body.createSpan({ cls: "ntp-file-title", text: file.basename });
+    body.createSpan({ cls: "ntp-file-title", text: displayName });
     body.createSpan({ cls: "ntp-file-path", text: file.path });
 
-    const actions = row.createDiv({ cls: "ntp-row-actions" });
-    this.createAction(actions, isPinned ? "pin-off" : "pin", isPinned ? "Unpin" : "Pin", () => {
-      if (this.isPinned(file.path)) {
-        void this.plugin.unpinFile(file.path);
-        return;
-      }
+    if (canPin) {
+      const actions = row.createDiv({ cls: "ntp-row-actions" });
+      this.createAction(actions, isPinned ? "pin-off" : "pin", isPinned ? "Unpin" : "Pin", () => {
+        if (this.isPinned(file.path)) {
+          void this.plugin.unpinFile(file.path);
+          return;
+        }
 
-      void this.plugin.pinFile(file);
-    }).addClass("ntp-pin-action");
+        void this.plugin.pinFile(file);
+      }).addClass("ntp-pin-action");
+    }
 
     openButton.addEventListener("click", () => {
       void this.plugin.openFile(file.path, this.leaf);
     });
     row.addEventListener("dragstart", (event) => {
+      if (!canPin) {
+        event.preventDefault();
+        return;
+      }
+
       this.draggedFilePath = file.path;
       row.addClass("is-dragging");
       this.contentEl.addClass("is-pinning");

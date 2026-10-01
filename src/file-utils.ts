@@ -18,7 +18,7 @@ export function getDisplayName(path: string): string {
   return name.replace(/\.md$/i, "");
 }
 
-export function filterMarkdownFiles(
+export function filterFiles(
   files: TFile[],
   query: string,
   limit = DEFAULT_SEARCH_LIMIT
@@ -30,7 +30,6 @@ export function filterMarkdownFiles(
   }
 
   return files
-    .filter(isMarkdownFile)
     .filter((file) => {
       const searchable = `${file.basename} ${file.path}`.toLowerCase();
       return searchable.includes(normalizedQuery);
