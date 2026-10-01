@@ -1,6 +1,6 @@
 {
   "name": "obsidian-new-tab-pins",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packageManager": "pnpm@10.16.1",
   "description": "Turn every empty Obsidian tab into a calm launcher for pinned notes, instant search, and recent files.",
   "main": "main.js",
